@@ -81,6 +81,15 @@ log_message "╚═════════════════════�
 log_message "${NC}"
 log_message "Started at: $(date '+%Y-%m-%d %H:%M:%S')\n"
 
+# Check sudo access early
+log_message "${YELLOW}Checking sudo access...${NC}"
+if ! sudo -v; then
+    log_message "${RED}✗ Failed to obtain sudo privileges${NC}"
+    log_message "${YELLOW}This script requires sudo access to install system themes.${NC}"
+    exit 1
+fi
+log_message "${GREEN}✓ Sudo access confirmed${NC}\n"
+
 # ============================================================================
 # PHASE 1: DEPENDENCY CHECK
 # ============================================================================
@@ -139,12 +148,28 @@ if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
     fi
 
     log_message "\n${YELLOW}Installing dependencies...${NC}"
-    if sudo apt update && sudo apt install -y "${MISSING_DEPS[@]}"; then
-        log_message "${GREEN}✓ Dependencies installed successfully${NC}"
-    else
-        log_message "${RED}✗ Failed to install dependencies${NC}"
+    log_message "${BLUE}Running apt update...${NC}"
+    if ! sudo apt update 2>&1 | tee -a "$LOG_FILE"; then
+        log_message "${RED}✗ Failed to update package lists${NC}"
         exit 1
     fi
+
+    log_message "${BLUE}Installing packages: ${MISSING_DEPS[*]}${NC}"
+    if ! sudo apt install -y "${MISSING_DEPS[@]}" 2>&1 | tee -a "$LOG_FILE"; then
+        log_message "${RED}✗ Failed to install dependencies${NC}"
+        log_message "${YELLOW}Attempted to install: ${MISSING_DEPS[*]}${NC}"
+        exit 1
+    fi
+
+    # Verify installation
+    for dep in "${MISSING_DEPS[@]}"; do
+        if [[ "$dep" == "sassc" ]] && ! command_exists sassc; then
+            log_message "${RED}✗ sassc was not installed successfully${NC}"
+            exit 1
+        fi
+    done
+
+    log_message "${GREEN}✓ Dependencies installed successfully${NC}"
 else
     log_message "\n${GREEN}✓ All dependencies satisfied${NC}"
 fi
@@ -240,12 +265,18 @@ log_message "${YELLOW}Installing Graphite GTK Theme (Nord variant) system-wide..
 log_message "${BLUE}This may take a few minutes as it compiles SCSS to CSS...${NC}"
 log_message "${YELLOW}You may be prompted for your sudo password...${NC}\n"
 
-if sudo ./install.sh --tweaks nord --dest /usr/share/themes 2>&1 | tee -a "$LOG_FILE"; then
-    log_message "\n${GREEN}✓ Graphite GTK Theme installed successfully to /usr/share/themes${NC}"
-else
+if ! sudo ./install.sh --tweaks nord --dest /usr/share/themes 2>&1 | tee -a "$LOG_FILE"; then
     log_message "${RED}✗ Failed to install Graphite GTK Theme${NC}"
     exit 1
 fi
+
+# Verify installation
+if [ ! -d "/usr/share/themes/Graphite-nord-dark" ] && [ ! -d "/usr/share/themes/Graphite-Dark-nord" ]; then
+    log_message "${RED}✗ Graphite GTK Theme was not installed successfully${NC}"
+    exit 1
+fi
+
+log_message "\n${GREEN}✓ Graphite GTK Theme installed successfully to /usr/share/themes${NC}"
 
 # ============================================================================
 # PHASE 4: INSTALL ICON THEME
@@ -263,12 +294,18 @@ chmod +x install.sh
 log_message "${YELLOW}Installing Tela Circle Icon Theme (Nord variant) system-wide...${NC}"
 log_message "${YELLOW}You may be prompted for your sudo password...${NC}\n"
 
-if sudo ./install.sh nord -d /usr/share/icons 2>&1 | tee -a "$LOG_FILE"; then
-    log_message "\n${GREEN}✓ Tela Circle Icon Theme installed successfully to /usr/share/icons${NC}"
-else
+if ! sudo ./install.sh nord -d /usr/share/icons 2>&1 | tee -a "$LOG_FILE"; then
     log_message "${RED}✗ Failed to install Tela Circle Icon Theme${NC}"
     exit 1
 fi
+
+# Verify installation
+if ! ls /usr/share/icons/Tela-circle-nord* >/dev/null 2>&1; then
+    log_message "${RED}✗ Tela Circle Icon Theme was not installed successfully${NC}"
+    exit 1
+fi
+
+log_message "\n${GREEN}✓ Tela Circle Icon Theme installed successfully to /usr/share/icons${NC}"
 
 # ============================================================================
 # PHASE 5: INSTALL WALLPAPER

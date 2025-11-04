@@ -1,0 +1,7 @@
+# Fresh Ubuntu Setup
+
+# Downloaded assets
+assets/
+
+# Installation logs
+scripts/*.log

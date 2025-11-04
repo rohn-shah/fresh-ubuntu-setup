@@ -195,8 +195,11 @@ lg           - Opens lazygit (alias)
 - Clear error messages indicate what went wrong
 
 ### Logging
-- All output is logged to `scripts/installation.log`
-- View the log for detailed troubleshooting
+- All output is logged during installation
+- Log files are automatically cleaned up after successful installation
+- If needed for debugging, logs are at:
+  - `scripts/installation.log` (main installation)
+  - `scripts/theme-installation.log` (theme installation)
 
 ### Summary Report
 After installation, you'll see a summary showing:
@@ -248,9 +251,15 @@ chmod +x scripts/*.sh
 ```
 
 ### Installation fails for a specific component
-1. Check the log file: `scripts/installation.log`
+1. Check the log files if they still exist (cleaned up on success)
 2. Run that specific script individually to see detailed errors
 3. Ensure your package lists are up to date: `sudo apt update`
+
+### Neovim or lazygit not found after installation
+The binaries are installed to `~/.local/bin/`. If they're not found:
+1. Restart your terminal, or
+2. Run `source ~/.zshrc` to reload your shell configuration
+3. Verify PATH includes `~/.local/bin`: `echo $PATH`
 
 ### Ghostty build fails
 Ghostty requires building from source and has specific dependencies:
@@ -310,19 +319,23 @@ MIT License - Feel free to use and modify as needed.
 ### Key Details
 - **Chrome & VSCode**: Downloaded directly from official sources
 - **Node.js**: Installed from NodeSource repository (latest LTS)
-- **Neovim**: Installed from neovim-ppa/stable (not outdated apt version)
+- **Neovim**: Installed as AppImage (latest stable v0.11.5+) to `~/.local/bin/`
+- **lazygit**: Installed from GitHub releases (latest version) to `~/.local/bin/`
 - **LazyVim**: First launch takes 2-3 minutes to install all plugins automatically
 - **GNOME Extensions**: Installed system-wide, requires logout to activate
 - **Nord Themes**: Downloads ~20MB of assets, GRUB installation requires sudo
 - **Ghostty**: Builds from source, takes 10-15 minutes, requires 2GB+ free space
 - **Zsh**: Automatically set as default shell (logout required to take effect)
 - **Fonts**: MesloLGS Nerd Fonts installed for terminal, Neovim, and Powerlevel10k
+- **PATH**: `~/.local/bin` is automatically added to PATH for user-installed binaries
 
 ### Safety Features
 - All scripts check if software is already installed (idempotent)
 - Existing configs are backed up with timestamps (e.g., .zshrc.backup, nvim.backup.*)
 - Installation continues even if individual components fail
-- Comprehensive logging to `scripts/installation.log`
+- Comprehensive logging during installation
+- Log files automatically cleaned up on successful completion
+- No broken PPAs - uses AppImages and direct downloads for compatibility
 
 ### Post-Installation
 1. **Log out and log back in** (for Zsh and GNOME extensions)

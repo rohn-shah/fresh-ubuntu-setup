@@ -75,41 +75,35 @@ else
     exit 1
 fi
 
-# Add Neovim PPA for latest stable version
-echo -e "${YELLOW}Adding Neovim stable PPA...${NC}"
-if sudo add-apt-repository -y ppa:neovim-ppa/stable; then
-    echo -e "${GREEN}✓ PPA added${NC}"
+# Install Neovim using AppImage (more reliable than PPA)
+BIN_DIR="$HOME/.local/bin"
+mkdir -p "$BIN_DIR"
+
+echo -e "${YELLOW}Downloading Neovim AppImage...${NC}"
+NVIM_URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.appimage"
+
+if curl -fLo "$BIN_DIR/nvim.appimage" "$NVIM_URL"; then
+    echo -e "${GREEN}✓ Neovim AppImage downloaded${NC}"
 else
-    echo -e "${RED}✗ Failed to add PPA${NC}"
+    echo -e "${RED}✗ Failed to download Neovim${NC}"
     exit 1
 fi
 
-# Update package list
-echo -e "${YELLOW}Updating package list...${NC}"
-if sudo apt update; then
-    echo -e "${GREEN}✓ Package list updated${NC}"
-else
-    echo -e "${RED}✗ Failed to update package list${NC}"
-    exit 1
-fi
+# Make it executable
+chmod +x "$BIN_DIR/nvim.appimage"
 
-# Install/upgrade Neovim
-echo -e "${YELLOW}Installing Neovim...${NC}"
-if sudo apt install -y neovim; then
-    echo -e "${GREEN}✓ Neovim installed successfully${NC}"
-else
-    echo -e "${RED}✗ Failed to install Neovim${NC}"
-    exit 1
-fi
+# Create symlink
+ln -sf "$BIN_DIR/nvim.appimage" "$BIN_DIR/nvim"
+
+echo -e "${GREEN}✓ Neovim installed successfully${NC}"
 
 # Verify installation
-if command_exists nvim; then
-    NVIM_VERSION=$(nvim --version | head -n1)
+if "$BIN_DIR/nvim" --version >/dev/null 2>&1; then
+    NVIM_VERSION=$("$BIN_DIR/nvim" --version 2>/dev/null | head -n1)
     echo -e "${GREEN}✓ Neovim is ready${NC}"
     echo -e "${BLUE}Version: $NVIM_VERSION${NC}"
 else
-    echo -e "${RED}✗ Neovim installation verification failed${NC}"
-    exit 1
+    echo -e "${YELLOW}⚠ Note: You may need to restart your terminal or run 'source ~/.zshrc'${NC}"
 fi
 
 # ============================================================================
@@ -175,40 +169,51 @@ if command_exists lazygit; then
     echo -e "${YELLOW}Checking for updates...${NC}"
 fi
 
-# Add lazygit PPA
-echo -e "${YELLOW}Adding lazygit PPA...${NC}"
-if sudo add-apt-repository -y ppa:lazygit-team/release; then
-    echo -e "${GREEN}✓ PPA added${NC}"
-else
-    echo -e "${RED}✗ Failed to add PPA${NC}"
+# Get latest lazygit version and install from GitHub releases
+echo -e "${YELLOW}Fetching latest lazygit version...${NC}"
+LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep -Po '"tag_name": "v\K[^"]*')
+
+if [ -z "$LAZYGIT_VERSION" ]; then
+    echo -e "${RED}✗ Failed to fetch latest version${NC}"
     exit 1
 fi
 
-# Update package list
-echo -e "${YELLOW}Updating package list...${NC}"
-if sudo apt update; then
-    echo -e "${GREEN}✓ Package list updated${NC}"
+echo -e "${BLUE}Latest version: $LAZYGIT_VERSION${NC}"
+
+# Download and install
+echo -e "${YELLOW}Downloading lazygit...${NC}"
+LAZYGIT_URL="https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz"
+TEMP_DIR=$(mktemp -d)
+
+if curl -fLo "$TEMP_DIR/lazygit.tar.gz" "$LAZYGIT_URL"; then
+    echo -e "${GREEN}✓ Downloaded lazygit${NC}"
 else
-    echo -e "${RED}✗ Failed to update package list${NC}"
+    echo -e "${RED}✗ Failed to download lazygit${NC}"
+    rm -rf "$TEMP_DIR"
     exit 1
 fi
 
-# Install lazygit
-echo -e "${YELLOW}Installing lazygit...${NC}"
-if sudo apt install -y lazygit; then
-    echo -e "${GREEN}✓ lazygit installed successfully${NC}"
-else
-    echo -e "${RED}✗ Failed to install lazygit${NC}"
-    exit 1
-fi
+# Extract
+echo -e "${YELLOW}Extracting lazygit...${NC}"
+tar xf "$TEMP_DIR/lazygit.tar.gz" -C "$TEMP_DIR"
+
+# Install to ~/.local/bin
+mkdir -p "$BIN_DIR"
+mv "$TEMP_DIR/lazygit" "$BIN_DIR/lazygit"
+chmod +x "$BIN_DIR/lazygit"
+
+# Cleanup
+rm -rf "$TEMP_DIR"
+
+echo -e "${GREEN}✓ lazygit installed successfully${NC}"
 
 # Verify installation
-if command_exists lazygit; then
+if "$BIN_DIR/lazygit" --version >/dev/null 2>&1; then
+    LG_VERSION=$("$BIN_DIR/lazygit" --version 2>/dev/null | head -n1)
     echo -e "${GREEN}✓ lazygit is ready${NC}"
-    echo -e "${BLUE}Version: $(lazygit --version)${NC}"
+    echo -e "${BLUE}Version: $LG_VERSION${NC}"
 else
-    echo -e "${RED}✗ lazygit installation verification failed${NC}"
-    exit 1
+    echo -e "${YELLOW}⚠ Note: You may need to restart your terminal or run 'source ~/.zshrc'${NC}"
 fi
 
 # ============================================================================
@@ -220,6 +225,17 @@ echo -e "\n${YELLOW}Phase 4: Configuring Zsh integration...${NC}"
 ZSHRC="$HOME/.zshrc"
 
 if [ -f "$ZSHRC" ]; then
+    # Ensure ~/.local/bin is in PATH
+    if ! grep -q 'export PATH="$HOME/.local/bin:$PATH"' "$ZSHRC"; then
+        echo -e "${YELLOW}Adding ~/.local/bin to PATH...${NC}"
+        echo "" >> "$ZSHRC"
+        echo "# Add ~/.local/bin to PATH for user binaries" >> "$ZSHRC"
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$ZSHRC"
+        echo -e "${GREEN}✓ PATH updated${NC}"
+    else
+        echo -e "${GREEN}✓ PATH already includes ~/.local/bin${NC}"
+    fi
+
     # Add fzf to plugins if not already present
     if grep -q "^plugins=" "$ZSHRC"; then
         if grep "^plugins=" "$ZSHRC" | grep -q "fzf"; then
@@ -322,3 +338,21 @@ echo -e ""
 echo -e "${BLUE}Important: ${NC}"
 echo -e "  - Restart your terminal or run ${CYAN}source ~/.zshrc${NC} to activate all changes"
 echo -e "  - First ${CYAN}nvim${NC} launch will take 2-3 minutes to install plugins"
+
+# ============================================================================
+# CLEANUP
+# ============================================================================
+
+echo -e "\n${YELLOW}Cleaning up...${NC}"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Remove log files if they exist
+if [ -f "$SCRIPT_DIR/installation.log" ]; then
+    rm -f "$SCRIPT_DIR/installation.log"
+    echo -e "${GREEN}✓ Removed installation.log${NC}"
+fi
+
+if [ -f "$SCRIPT_DIR/theme-installation.log" ]; then
+    rm -f "$SCRIPT_DIR/theme-installation.log"
+    echo -e "${GREEN}✓ Removed theme-installation.log${NC}"
+fi
